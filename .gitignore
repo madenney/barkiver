@@ -3,3 +3,5 @@ output
 output/
 archive
 archive
+data_backup.json
+videoInfo.json
