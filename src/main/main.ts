@@ -6,6 +6,7 @@ import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import fs from 'fs';
+import generateVideo from './generateVideo';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -21,6 +22,12 @@ ipcMain.on('getConfig', async (event) => {
   if(fs.existsSync(configPath)){
     event.reply('config', JSON.parse(fs.readFileSync(configPath).toString()))
   }
+})
+
+ipcMain.on('generateVideo', async (event,payload) => {
+  const _payload = JSON.parse(payload)
+  const response = await generateVideo(event, _payload.config, _payload.results)
+  event.reply('done', response);
 })
 
 ipcMain.on('setConfig', async (e,payload) => {

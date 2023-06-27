@@ -4,11 +4,10 @@ import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 
 import Multiselect from 'multiselect-react-dropdown';
-import { multiSelectStyle } from './rendererConfig';
 
-import { Match, Move, Player, Result, Config } from "./types";
-import { defaultConfig } from "./defaultConfig";
-
+import { Match, Move, Player, Result, Config, MainStatus } from "./types";
+import { defaultConfig, defaultMainStatus, multiSelectStyle } from "./defaults";
+import magic from "./magic";
 
 window.electron.ipcRenderer.sendMessage('getMatches',[]);
 window.electron.ipcRenderer.sendMessage('getConfig',[]);
@@ -18,9 +17,9 @@ function Main() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [config, setConfig] = useState<Config>(defaultConfig);
+  const [mainStatus, setMainStatus] = useState<MainStatus>(defaultMainStatus);
 
   useEffect(() => getData(setMatches,setConfig),[])
-
 
   const handleChange = (value: any, field: string) => {
     setConfig(prevState => ({ ...prevState, [field]: value }))
@@ -28,7 +27,28 @@ function Main() {
     window.electron.ipcRenderer.sendMessage('setConfig',stringifiedConfig);
   };
 
+  function resetConfig(){
+    setConfig(defaultConfig)
+    const stringifiedConfig = JSON.stringify(defaultConfig)
+    window.electron.ipcRenderer.sendMessage('setConfig',stringifiedConfig);
+  }
   
+  const dataFormSubmit = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    const results = magic(matches, config)
+    setResults(results)
+  }
+
+  function generateVideo(){
+    const stringifiedData = JSON.stringify({ config, results })
+    window.electron.ipcRenderer.sendMessage('generateVideo',stringifiedData);
+  }
+
+  window.electron.ipcRenderer.once('status', (status: MainStatus) => {
+    // eslint-disable-next-line no-console
+    console.log('Status:', status);
+    setMainStatus(status)
+  });
 
   type Players = { [key: string]: number };
   const players:Players = {};
@@ -48,7 +68,12 @@ function Main() {
   
   const tmp: Player[] = []
   Object.keys(players).forEach( (key, index) => {
-    tmp.push({name: `${key} - ${players[key]}`, id: index, numShots: players[key]})
+    tmp.push({
+      name: `${key}`,
+      dropdownName: `${key} - ${players[key]}`, 
+      id: index, 
+      numShots: players[key]
+    })
   })
   const sortedPlayersForDropdown = tmp.sort((a,b) => b.numShots - a.numShots).slice(1)
 
@@ -69,7 +94,12 @@ function Main() {
           <div className='divider'></div>
           <div className="primary-control-section">
             <div className="section-title">Data Controls: </div>
-            <div className="data-control-wrapper">
+            <div className="data-control-row">
+                <button onClick={resetConfig}>Clear</button>
+              </div>
+            <form className="data-control-wrapper"
+              onSubmit={dataFormSubmit}  
+            >
               <div className="data-control-row">
                 <div className="label">Players</div>
                 <div className="multi-select">
@@ -78,32 +108,101 @@ function Main() {
                     selectedValues={config.players} 
                     onSelect={(newList) => handleChange(newList,"players")} 
                     onRemove={(newList) => handleChange(newList,"players")} 
-                    displayValue="name" 
+                    displayValue="dropdownName" 
                     style={multiSelectStyle}
                   />
                 </div>
               </div>
               <div className="data-control-row">
-                <div className="label">Param:</div>
-                <input className="input">Param:</input>
+                <div className="label">Num:</div>
+                <input className="input"
+                  value={config.num}
+                  onChange={(e) => handleChange(e.target.value,"num")}
+                />
               </div>
-              <div className="data-control-row"></div>
-              <div className="data-control-row"></div>
-              <div className="data-control-row"></div>
-              <div className="data-control-row"></div>
-              <div className="data-control-row"></div>
-            </div>
-
+              <div className="data-control-row">
+                <div className="label">Sort:</div>
+                <input className="input"
+                  value={config.sortParam}
+                  onChange={(e) => handleChange(e.target.value,"sortParam")}
+                />
+              </div>
+              <div className="data-control-row">
+                <div className="label">Shuffle:</div>
+                <input className="input" type="checkbox"
+                  checked={config.shuffle}
+                  onChange={(e) => handleChange(e.target.value,"shuffle")}
+                />
+              </div>
+              <div className="data-control-row">
+                <div className="label">Start Seconds:</div>
+                <input className="input"
+                  value={config.startSeconds}
+                  onChange={(e) => handleChange(e.target.value,"startSeconds")}
+                />
+              </div>
+              <div className="data-control-row">
+                <div className="label">End Seconds:</div>
+                <input className="input"
+                  value={config.endSeconds}
+                  onChange={(e) => handleChange(e.target.value,"endSeconds")}
+                />
+              </div>
+              <div className="data-control-row">
+                <div className="label">Custom:</div>
+                <input className="input"
+                  value={config.custom}
+                  onChange={(e) => handleChange(e.target.value,"custom")}
+                />
+              </div>
+              <div className="data-control-row">
+                <button>Run</button>
+              </div>
+            </form>
           </div>
           <div className='divider'></div>
           <div className="results-section">
             <div className="section-title">Results: </div>
             <div>Total: {results.length}</div>
+            {results.slice(0,10).map( (result,index) => {
+              return (<div key={index}>
+                <div>{result.match.videoLink}</div>
+                <div>{`${result.start} - ${result.end}`}</div>
+              </div>)
+            })}
           </div>
           <div className='divider'></div>
           <div className="video-section">
             <div className="section-title">Video Controls: </div>
             <div>Total: {results.length}</div>
+            <div className="data-control-row">
+              <div className="label">Archive Path:</div>
+              <input className="input"
+                value={config.ytdlArchivePath}
+                onChange={(e) => handleChange(e.target.value,"ytdlArchivePath")}
+              />
+            </div>
+            <div className="data-control-row">
+              <div className="label">outputPath:</div>
+              <input className="input"
+                value={config.outputPath}
+                onChange={(e) => handleChange(e.target.value,"outputPath")}
+              />
+            </div>
+            <div className="data-control-row">
+              <div className="label">qualityMode:</div>
+              <input className="input"
+                value={config.qualityMode}
+                onChange={(e) => handleChange(e.target.value,"qualityMode")}
+              />
+            </div>
+            <div className="generationWrapper">
+            { mainStatus.isBusy ?
+              <div className="mainStatusMessage">{mainStatus.message}</div>
+              :
+              <button onClick={() => generateVideo()} className="bigGreenButton">GO</button>    
+            }
+            </div>
           </div>
         </div>
         : 

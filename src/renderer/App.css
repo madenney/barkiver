@@ -30,6 +30,7 @@ body {
 
 .section-title {
   font-size: 30px;
+  width: 100%
 }
 
 .prelim-data-section {
@@ -46,13 +47,20 @@ body {
 
 .primary-control-section {
   margin: 20px;
+}
 
+.data-control-wrapper {
+  display: flex;
+  justify-content: space-evenly;
+  flex-wrap: wrap;
 }
 
 .data-control-row {
   display: flex;
   justify-content: left;
   margin-top: 10px;
+  width: 400px;
+  height: 50px;
 }
 
 .label {
@@ -74,4 +82,33 @@ body {
 
 .video-section {
   margin: 20px;
+}
+
+.bigGreenButton {
+  font-size: 40px;
+  background-color: green;
+  padding: 20px 40px;
+  margin: 40px;
+  border: solid black 2px;
+  border-radius: 5px;
+
+}
+
+.bigGreenButton:hover {
+  cursor: pointer;
+  background-color: darkgreen;
+}
+
+.mainStatusMessage {
+  font-size: 20px;
+  margin: 20px;
+  padding: 10px;
+  color: white;
+}
+
+.generationWrapper {
+  min-height: 200px;
+  border: solid white 1px;
+  margin: 20px;
+  padding: 10px;
 }

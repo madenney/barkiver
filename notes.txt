@@ -1,1 +1,10 @@
 https://stackoverflow.com/questions/33854390/ffmpeg-how-to-encode-for-seekable-video-at-high-key-frame-interval
+
+https://github.com/electron-react-boilerplate/electron-react-boilerplate
+
+
+
+
+
+build:
+conveyor make site
