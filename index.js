@@ -8,31 +8,204 @@ const { asyncForEach, pad, shuffleArray } = require("./lib")
 const { accurateSlice } = require("./accurateslice")
 
 
-const startingNumber = 9999
-const startSeconds = 2
-const endSeconds = 8
-const shuffle = true
+const startingNumber = 200000
+// shane 1000 shots
+const startSeconds = 5
+const endSeconds = 12
+// custom:
+// const startSeconds = 5
+// const endSeconds = 20
+const shuffle = false
 const sort = false
 const param = "pocketDist"
 const HQmode = true
-const player = false
+// const player = "Shane Van Boening"
 // const player = "Joshua Filler"
-//const players = ["Francisco Sanchez Ruiz"]
+//const players = ["James ARANAS"]
+//const player = 'vier'
 const players = ["Shane Van Boening", "Joshua Filler", "Francisco Sanchez Ruiz", "Fedor Gorst", "Dennis Orcollo"]
 // const player = null
+// const players = null
 const printNShots = 0
 const onlyPrint = false
 
-main()
+//main()
 async function main(){
     console.log("----- Billiards Archiver -----\n")
     const matches = require("./data.json")
     // await fixData(matches)
-    const clips = await generateClips(matches)
-    //const clips = await breakAndRuns(matches)
+    //const clips = await generateClips(matches)
+    const clips = await breakAndRuns(matches)
+    
+    const some_clips = clips.slice(0,2)
+    some_clips.slice(0,1).map((clip) => {
+        //console.log(clip)
+    })
     if(onlyPrint) return false
-    await generateVideo(clips)
+    await generateVideo(some_clips)
     console.log("Done :)")
+}
+
+
+fs.readFile('./export3.json', 'utf8', (err, data) => {
+    if (err) {
+      console.error('Error reading JSON file:', err);
+      return;
+    }
+  
+    try {
+      // Parse the JSON data
+      const shots = JSON.parse(data);
+
+      shots.forEach(shot => {
+        shot.start = Math.floor(shot.begin / shot.fps)
+      })
+  
+      // Now you can work with the JSON data
+      generateVideo_onetime(shots)
+    } catch (parseError) {
+      console.error('Error parsing JSON:', parseError);
+    }
+});
+
+async function generateVideo_onetime(clips){
+    console.log("Clips: ", clips.length)
+    console.log(clips[0])
+    console.log(clips[1])
+    const clipLinks = []
+    clips.forEach((clip, index) => {
+        if(clipLinks.indexOf(clip.video) == -1 ){
+            clipLinks.push(clip.video)
+        }
+    })
+    console.log("Videos: ", clipLinks.length)
+
+    // already downloaded ids
+    let lines = fs.readFileSync('./newArchive/downloadArchive').toString().split("\n");
+    const ids = []
+    lines.forEach(line => {
+        ids.push(line.split(" ")[1])
+    })
+
+    // bad links
+    lines = fs.readFileSync('./newArchive/badLinks').toString().split("\n");
+    const badLinks = []
+    lines.forEach(line => {
+        badLinks.push(line)
+    })
+
+    const undownloadedLinks = []
+    clipLinks.forEach(link => {
+
+        if(badLinks.indexOf(link) > -1 ) return false
+
+        let videoId = "tmp"
+        let tmp = link.split("?v=")
+        if(!tmp[1]){
+            videoId = tmp[0].split("youtu.be/")[1].split("&")[0]
+        } else {
+            videoId = tmp[1].split("&")[0]
+        }
+        
+        if(ids.indexOf(videoId) == -1 ){
+            undownloadedLinks.push(link)
+        } 
+    })
+
+    // download videos
+    console.log(`\nDownloading ${undownloadedLinks.length} videos...`)
+    await asyncForEach( undownloadedLinks, async (link) => {
+
+        console.log(link)
+        let info
+        try {
+            const tmp = link.split("&list")[0]
+            info = await getInfo(tmp)
+            if(!info) throw "info undefined"
+        } catch(err){
+            console.log("Error getting info: ")
+            console.log(err)
+            fs.appendFileSync('./newArchive/badLinks', `\n${link}`);
+            console.log("-------------------------------------------------------------")
+            return 
+        }
+
+        fs.writeFileSync('videoInfo.json', JSON.stringify(info))
+        if(!info.title){
+            console.log("No title?")
+            console.log("video id: ", info.id)
+            console.log("-------------------------------------------------------------")
+            return 
+        }
+
+        console.log(info.title)
+
+        //const t = info.title.split(" ").join("_")
+        const t = info.id
+        const path = `./newArchive/${t}`
+        await fromInfo('videoInfo.json', { 
+            output: path,
+            downloadArchive: `./newArchive/downloadArchive`
+        })
+
+        clips.forEach(clip => {
+            if(clip.videoLink == link ){
+                clip.videoPath = `${path}.webm`
+            }
+        })
+
+        console.log("-------------------------------------------------------------")
+    })
+    console.log("Done downloading.")
+
+
+    //asdfasdf
+    clips.forEach(clip => {
+        if(clip.videoTitle == "N/A - bad link") return false
+        if(!clip.videoPath){
+            let videoId = "tmp"
+            let tmp = clip.video.split("?v=")
+            if(!tmp[1]){
+                videoId = tmp[0].split("youtu.be/")[1].split("&")[0]
+            } else {
+                videoId = tmp[1].split("&")[0]
+            }
+            clip.videoPath = `./newArchive/${videoId}.webm`
+        }
+    })
+
+
+    
+
+    console.log(`\nCutting ${clips.filter(c => c.videoTitle != "N/A - bad link").length} clips...\n`)
+
+    // make output directory videos
+    let outputDirectoryName = "output";
+    const outputPath = "./output"
+    let count = 1;
+    while(fs.existsSync(path.resolve(`${outputPath}/${outputDirectoryName}`))){
+        outputDirectoryName = `output${count++}`
+    }
+    fs.mkdirSync(path.resolve(outputPath + "/" + outputDirectoryName))
+
+    // Accurate Slice:
+    count = 0
+    await asyncForEach(clips, async clip => {
+        process.stdout.clearLine()
+        process.stdout.cursorTo(0)
+        process.stdout.write(`${count}/${clips.length}`)
+        if(clip.videoTitle == "N/A - bad link") return false
+        await accurateSlice(
+            clip.videoPath,
+            pad(count++,4).toString(),
+            path.resolve(`${outputPath}/${outputDirectoryName}`),
+            clip.start-5,
+            clip.start+15
+        )
+    })
+    process.stdout.clearLine()
+    process.stdout.cursorTo(0)
+    process.stdout.write(`${count}/${clips.length}\n`)
 }
 
 function analyze(clips){
@@ -51,15 +224,14 @@ async function breakAndRuns(matches){
 
     matches.forEach( match => {
         let tmp = []
+        let lastPlayer = ""
         const str = `${match.videoTitle.split(" ").join("_")}.webm`
-        console.log(str)
-        if(!str.includes("2021_World_Pool_Championship_|_Table_Two")){
-            return false
-        }
+        //console.log(str)
 
         match.moves.forEach(move => {
-            if(players.indexOf(move.player) == -1){
+            if(players && players.indexOf(move.player) == -1){
                 tmp = []
+                lastPlayer = ""
                 return false
             }
 
@@ -76,9 +248,9 @@ async function breakAndRuns(matches){
                     player2: match.player2,
                     ...move
                 }]
+                lastPlayer = move.player
             } else if (move.outcome == "made" ){
-                console.log(tmp.length)
-                if(tmp[0] && tmp[0].outcome == "break"){
+                if(tmp[0] && tmp[0].outcome == "break" && lastPlayer == move.player){
                     tmp.push({
                         videoTitle: match.videoTitle,
                         videoLink: match.videoLink,
@@ -86,6 +258,7 @@ async function breakAndRuns(matches){
                     })
                 } else {
                     tmp = []
+                    lastPlayer = ""
                 }
             } else {
                 tmp = []
@@ -159,6 +332,8 @@ async function generateClips(matches){
             shots.push({
                 videoTitle: match.videoTitle,
                 videoLink: match.videoLink,
+                eventType: match.eventType,
+                eventName: match.eventName,
                 ...move
             })
         })
@@ -167,11 +342,20 @@ async function generateClips(matches){
     console.log("Total Shots: ", shots.length)
     shots = shots.filter(s => {
         const str = `${s.videoTitle.split(" ").join("_")}.webm`
-        if(!str.includes("2021_World_Pool_Championship_|_Table_Two")) return false
-        if(player && s.player != player) return false
-        if( !s[param] || s[param] == "-") return false
-        s[param] = s[param].split(" ")[0]
+        //if(!str.includes("2021_World_Pool_Championship_|_Table_Two")) return false
+        // if(player && s.player != player) return false
+        if(players && players.indexOf(s.player) == -1) return false
+        // if(player){
+        //     const lowercase = s.player.toLowerCase()
+        //     if(lowercase.indexOf(player) == -1){
+        //         return false
+        //     }
+        // }
+        //if( !s[param] || s[param] == "-") return false
+        //s[param] = s[param].split(" ")[0]
         if(s.outcome != "made") return false
+        //if(s.eventType != '9') return false
+        if(s.outcome == "break") return false 
         return true
     })
 
@@ -189,7 +373,6 @@ async function generateClips(matches){
         shots.slice(0,printNShots).forEach( shot => console.log(shot))
     }
 
-    
     const clips = []
 
     shots.slice(0,startingNumber).forEach(shot => {
@@ -197,20 +380,39 @@ async function generateClips(matches){
         const tmp = shot.time.split(':')
         const seconds = (+tmp[0]) * 60 * 60 + (+tmp[1]) * 60 + (+tmp[2]); 
 
-        let start = seconds 
+        let start = seconds + startSeconds
         if(start == 0 ) start = 1
 
-        // UI goes here
-        clips.push({
-            videoTitle: shot.videoTitle,
-            videoLink: shot.videoLink,
-            start,
-            end: seconds + endSeconds        
-        })
+        // eliminate overlaps
+        if(!shuffle){
+            if(
+                clips[clips.length-1] 
+                && clips[clips.length-1].videoLink == shot.videoLink
+                && parseInt(clips[clips.length-1].end) >= parseInt(start) 
+            ){
+                clips[clips.length-1].end = seconds + endSeconds
+            } else {
+                clips.push({
+                    videoTitle: shot.videoTitle,
+                    videoLink: shot.videoLink,
+                    start,
+                    end: seconds + endSeconds        
+                })
+            }
+        } else {
+            clips.push({
+                videoTitle: shot.videoTitle,
+                videoLink: shot.videoLink,
+                start,
+                end: seconds + endSeconds        
+            })
+        }
+        
     })
 
     return clips 
 }
+
 
 
 async function generateVideo(clips){
@@ -334,7 +536,7 @@ async function generateVideo(clips){
             if(clip.videoTitle == "N/A - bad link") return false
             await accurateSlice(
                 clip.videoPath,
-                pad(count++,3).toString(),
+                pad(count++,4).toString(),
                 path.resolve(`${outputPath}/${outputDirectoryName}`),
                 clip.start,
                 clip.end

@@ -1,1 +1,13 @@
 https://stackoverflow.com/questions/33854390/ffmpeg-how-to-encode-for-seekable-video-at-high-key-frame-interval
+
+
+
+GOT IT RIGHT WITH convert.js
+
+time_scale_test
+
+
+
+printf "file '%s'\n" * > file.txt
+
+ffmpeg -f concat -i file.txt -c:v copy -c:a copy output.mp4

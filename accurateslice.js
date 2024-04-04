@@ -8,7 +8,7 @@ const path = require('path')
 
 // Takes .webm, cuts around it, converts it to mp4 with high density keyframes, then cuts an accurate slice
 module.exports.accurateSlice = async function(input, outputName, outputDir, start, end){
-
+    console.log("Video Path: ", input)
     try {
     const output = path.resolve(outputDir,outputName)
     const inputPath = path.resolve(input)
@@ -39,6 +39,8 @@ module.exports.accurateSlice = async function(input, outputName, outputDir, star
             break
         }
     }
+    console.log("Nearest Start Keyframe: ", nearestStartKeyFrame)
+    console.log("Nearest End Keyframe: ", nearestEndKeyFrame)
 
     // cut around clip at nearest keyframes
     const lrgSliceArgs = [`-ss`,`${nearestStartKeyFrame}`,`-to`,`${nearestEndKeyFrame}`,`-i`,`${inputPath}`,`-c`,`copy`,`${output}-lrg.webm`]
@@ -67,7 +69,7 @@ module.exports.accurateSlice = async function(input, outputName, outputDir, star
  
     // delete files
     fs.rmSync(`${output}-lrg.webm`)
-    //fs.rmSync(`${output}-lrg.mp4`)
+    fs.rmSync(`${output}-lrg.mp4`)
     
     fs.appendFileSync(logPath, `-------------------------------------------------------------------------------------\n`)
 
