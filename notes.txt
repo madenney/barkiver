@@ -11,3 +11,4 @@ time_scale_test
 printf "file '%s'\n" * > file.txt
 
 ffmpeg -f concat -i file.txt -c:v copy -c:a copy output.mp4
+
