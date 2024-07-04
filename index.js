@@ -1,506 +1,394 @@
 
+
+const { program } = require('commander');
 const youtubedl = require('youtube-dl-exec')
 const fs = require('fs')
 const path = require('path')
-const logger = require('progress-estimator')()
 const { spawn } = require("child_process")
+const logger = require('progress-estimator')()
 const { asyncForEach, pad, shuffleArray } = require("./lib")
 const { accurateSlice } = require("./accurateslice")
 
 
-const startingNumber = 9999
-const startSeconds = 2
-const endSeconds = 8
-const shuffle = true
-const sort = false
-const param = "pocketDist"
-const HQmode = true
-const player = false
-// const player = "Joshua Filler"
-//const players = ["Francisco Sanchez Ruiz"]
-const players = ["Shane Van Boening", "Joshua Filler", "Francisco Sanchez Ruiz", "Fedor Gorst", "Dennis Orcollo"]
-// const player = null
-const printNShots = 0
-const onlyPrint = false
+const archivePath = "./archive"
 
-main()
-async function main(){
-    console.log("----- Billiards Archiver -----\n")
+
+async function main() {
+    console.log("----- Pool Clipper -----\n")
+
+    checkForArchivePath()
+    
+    const args = argParse();
+
     const matches = require("./data.json")
-    // await fixData(matches)
-    const clips = await generateClips(matches)
-    //const clips = await breakAndRuns(matches)
-    if(onlyPrint) return false
-    await generateVideo(clips)
-    console.log("Done :)")
-}
 
-function analyze(clips){
-    let last = ""
-    clips.forEach(clip => {
-        if(clip.videoTitle == last)return
-        last = clip.videoTitle
-        console.log(clip.videoTitle)
-        console.log(clip.videoLink)
-    })
-}
+    const shots = findShots(args, matches)
 
-async function breakAndRuns(matches){
+    const clipTemplates = createClipTemplates(args, shots)
 
-    const bars = []
-
-    matches.forEach( match => {
-        let tmp = []
-        const str = `${match.videoTitle.split(" ").join("_")}.webm`
-        console.log(str)
-        if(!str.includes("2021_World_Pool_Championship_|_Table_Two")){
-            return false
+    if(args.data == true){
+        console.log("Clip Templates: ", clipTemplates.length)
+        if(args.bar){
+            console.log("BARs: ", clipTemplates.filter(c => c.outcome == "break").length)
         }
-
-        match.moves.forEach(move => {
-            if(players.indexOf(move.player) == -1){
-                tmp = []
-                return false
-            }
-
-            if(move.outcome == "break"){
-                if(tmp.length > 0 ){
-                    const bar = []
-                    tmp.forEach(m => bar.push(m))
-                    bars.push(bar)
-                }
-                tmp = [{
-                    videoTitle: match.videoTitle,
-                    videoLink: match.videoLink,
-                    player1: match.player1,
-                    player2: match.player2,
-                    ...move
-                }]
-            } else if (move.outcome == "made" ){
-                console.log(tmp.length)
-                if(tmp[0] && tmp[0].outcome == "break"){
-                    tmp.push({
-                        videoTitle: match.videoTitle,
-                        videoLink: match.videoLink,
-                        ...move
-                    })
-                } else {
-                    tmp = []
-                }
-            } else {
-                tmp = []
-            }
-        })
-    })
-
-    const clips = []
-
-    // speedrun mode
-    bars.slice(0,startingNumber).forEach(bar => {
-        bar.forEach( shot => {
-            const tmp = shot.time.split(':')
-            const seconds = (+tmp[0]) * 60 * 60 + (+tmp[1]) * 60 + (+tmp[2]); 
-    
-            let start = seconds - startSeconds
-            let end = seconds + endSeconds
-            
-            clips.push({
-                videoTitle: shot.videoTitle,
-                videoLink: shot.videoLink,
-                start,
-                end  
-            })
-        })
-    })
-
-    // normal mode
-    // bars.slice(0,startingNumber).forEach(bar => {
-    //     bar.forEach( shot => {
-    //         const tmp = shot.time.split(':')
-    //         const seconds = (+tmp[0]) * 60 * 60 + (+tmp[1]) * 60 + (+tmp[2]); 
-    
-    //         let start = seconds - startSeconds
-    //         if(start == 0 ) start = 1
-    
-    //         if(
-    //             clips.length > 0 && 
-    //             clips[clips.length-1].end + 4 > start &&
-    //             bar.indexOf(shot) > 0
-    //         ){
-    //             clips[clips.length-1].end = seconds + endSeconds
-    //         } else {
-    //             let _s = endSeconds
-    //             if(shot.outcome == "break"){
-    //                 _s = _s + 1 
-    //             } else {
-    //                 _s = _s 
-    //             }
-    //             clips.push({
-    //                 videoTitle: shot.videoTitle,
-    //                 videoLink: shot.videoLink,
-    //                 start,
-    //                 end: seconds + _s     
-    //             })
-    //         }
-    //     })
-    // })
-    if(printNShots){
-        clips.slice(0,printNShots).forEach( shot => console.log(shot))
+        return
     }
-    return clips
+
+
+    await downloadVideos(clipTemplates, matches)
+
+    const outputDir = createOutputDir()
+
+    const logPath = path.resolve(outputDir, "log.txt")
+    fs.appendFileSync(logPath, `Directory: ${outputDir}`)
+
+    await generateClips(args, clipTemplates, outputDir, logPath)
+
+    console.log("\nDone.")
 }
 
-async function generateClips(matches){
+
+function findShots(args, matches){
 
     let shots = []
 
+
+    // skip bad links TODO: fix bad links
+    badLinks = fs.readFileSync('./archive/badLinks').toString().split("\n");
+
     matches.forEach(match => {
+
+        if(badLinks.indexOf(match.videoLink) > -1) return
+
         match.moves.forEach( move => {
-            shots.push({
+
+            const shot = {
                 videoTitle: match.videoTitle,
                 videoLink: match.videoLink,
+                videoPath: match.videoPath, // might be undefined
+                eventType: match.eventType,
+                eventName: match.eventName,
                 ...move
-            })
+            }
+
+            shots.push(shot)
         })
     })
 
     console.log("Total Shots: ", shots.length)
-    shots = shots.filter(s => {
-        const str = `${s.videoTitle.split(" ").join("_")}.webm`
-        if(!str.includes("2021_World_Pool_Championship_|_Table_Two")) return false
-        if(player && s.player != player) return false
-        if( !s[param] || s[param] == "-") return false
-        s[param] = s[param].split(" ")[0]
-        if(s.outcome != "made") return false
-        return true
-    })
+
+    if(args.gameType){
+        switch (args.gameType){
+            case "8":
+                shots = shots.filter(shot => shot.eventType == "8")
+                break
+            case "9":
+                shots = shots.filter(shot => shot.eventType == "9")
+                break
+            case "10":
+                shots = shots.filter(shot => shot.eventType == "10")
+                break
+            case "9+":
+                shots = shots.filter(shot => (shot.eventType == "9" || shot.eventType == "10"))
+                break
+            default:
+                throw new Error("Error: Invalid GameType:", args.gameType)
+        }
+    }
+
+    if(args.bar){
+        console.log("-- Break and Runs only")
+        let bars = []
+        let tmp = []
+        let player = null
+        shots.forEach(shot => {
+            if(shot.outcome == "break"){
+                if(tmp.length > 0){
+                    bars.push(tmp)
+                }
+                player = shot.player
+                tmp = [shot]
+                return
+            }
+            if(tmp.length > 0 && shot.outcome == "made" && shot.player == player){
+                tmp.push(shot)
+            } else {
+                tmp = []
+            }
+        })
+
+
+        console.log("#BreakAndRuns: ", bars.length)
+        shots = []
+        bars.forEach(bar => {
+            if(bar.length > 5 ){
+                bar.forEach(shot => shots.push(shot))
+            }
+        })
+    }
+
+    if(args.player){
+        shots = shots.filter(s => {
+            if(s.player.toLowerCase() != args.player.toLowerCase()) return false
+            return true
+        })
+    }
+
 
     console.log("Filtered Shots: ", shots.length )
 
-    if(shuffle) shots = shuffleArray(shots)
+    if(args.shuffle) shots = shuffleArray(shots)
 
-    if(sort){
+    if(args.sort){
         shots = shots.sort((a,b) => {
             return parseFloat(b[param]) - parseFloat(a[param])
         })
     }
 
-    if(printNShots){
-        shots.slice(0,printNShots).forEach( shot => console.log(shot))
+    if(args.verbose){
+        shots.slice(0,args.clips).forEach( shot => console.log(shot))
     }
 
-    
-    const clips = []
+    return shots.slice(0, args.clips)
 
-    shots.slice(0,startingNumber).forEach(shot => {
+}
+
+function createClipTemplates(args,shots){
+    const clipTemplates = []
+
+    shots.forEach((shot, index) => {
 
         const tmp = shot.time.split(':')
         const seconds = (+tmp[0]) * 60 * 60 + (+tmp[1]) * 60 + (+tmp[2]); 
 
-        let start = seconds 
-        if(start == 0 ) start = 1
+        // let start = seconds 
+        // if(start == 0 ) start = 1
 
-        // UI goes here
-        clips.push({
+        const newClipTemplate = {
             videoTitle: shot.videoTitle,
             videoLink: shot.videoLink,
-            start,
-            end: seconds + endSeconds        
-        })
+            videoPath: shot.videoPath,
+            eventName: shot.eventName,
+            outcome: shot.outcome,
+            player: shot.player,
+            start: seconds,
+            end: seconds + args.endSeconds        
+        }
+
+        if(shot.outcome == "break") newClipTemplate.end += args.breakEndSeconds
+        // fix overlaps
+        const lastClipTemplate = clipTemplates[clipTemplates.length-1]
+        if(
+            lastClipTemplate &&
+            lastClipTemplate.outcome == "made" &&
+            lastClipTemplate.player == newClipTemplate.player &&
+            lastClipTemplate.end >= newClipTemplate.start - 1
+        ) {
+            lastClipTemplate.end = newClipTemplate.end
+        } else {
+            clipTemplates.push(newClipTemplate)
+        }
+
     })
 
-    return clips 
+    return clipTemplates 
 }
 
 
-async function generateVideo(clips){
-    console.log("Clips: ", clips.length)
-
-    const clipLinks = []
-    clips.forEach(clip => {
-        if(clipLinks.indexOf(clip.videoLink) == -1 ){
-            clipLinks.push(clip.videoLink)
-        }
-    })
-    console.log("Videos: ", clipLinks.length)
-
-    // already downloaded ids
-    let lines = fs.readFileSync('./archive/downloadArchive').toString().split("\n");
-    const ids = []
-    lines.forEach(line => {
-        ids.push(line.split(" ")[1])
-    })
-
-    // bad links
-    lines = fs.readFileSync('./archive/badLinks').toString().split("\n");
-    const badLinks = []
-    lines.forEach(line => {
-        badLinks.push(line)
-    })
+async function downloadVideos(clipTemplates, matches){
 
     const undownloadedLinks = []
-    clipLinks.forEach(link => {
-
-        if(badLinks.indexOf(link) > -1 ) return false
-
-        let videoId = "tmp"
-        let tmp = link.split("?v=")
-        if(!tmp[1]){
-            videoId = tmp[0].split("youtu.be/")[1].split("&")[0]
-        } else {
-            videoId = tmp[1].split("&")[0]
-        }
-        
-        if(ids.indexOf(videoId) == -1 ){
-            undownloadedLinks.push(link)
+    
+    clipTemplates.forEach(clipTemplate => {
+        if(!clipTemplate.videoPath){
+            if(undownloadedLinks.indexOf(clipTemplate.videoLink) == -1){
+                undownloadedLinks.push(clipTemplate.videoLink)
+            }
         }
     })
 
     // download videos
-    console.log(`\nDownloading ${undownloadedLinks.length} videos...`)
+    console.log(`\nDownloading ${undownloadedLinks.length} videos...\n`)
+    //await asyncForEach( undownloadedLinks, async (link) => {
+    let downloadCount = 1
     await asyncForEach( undownloadedLinks, async (link) => {
 
-        console.log(link)
-        let info
+        console.log(`Video - ${downloadCount++}/${undownloadedLinks.length}`)
+        console.log("Link: ", link)
+
+        let videoPath = null
+
         try {
-            const tmp = link.split("&list")[0]
-            info = await getInfo(tmp)
-            if(!info) throw "info undefined"
-        } catch(err){
-            console.log("Error getting info: ")
-            console.log(err)
-            fs.appendFileSync('./archive/badLinks', `\n${link}`);
+            await new Promise((resolve) => {
+                const dlProcess = spawn('yt-dlp', [link, '-P', './archive/', '--restrict-filenames', '--no-playlist'])//--replace-in-metadata', "title,uploader", "[ ]", "_"])
+                dlProcess.on("exit", resolve)
+                dlProcess.stdout.on('data', (data) => {
+                    const output = data.toString()
+
+                    const downloadUpdateTag = '[download]'
+                    if(output.indexOf(downloadUpdateTag) > -1 && output.indexOf("%") > -1 ){
+                        process.stdout.clearLine()
+                        process.stdout.cursorTo(0)
+                        process.stdout.write(`${output.slice(downloadUpdateTag.length +2)}`)
+                    }
+
+                    if(output.indexOf("[Merger]") > -1){
+                        // get everything between quotes
+                        videoPath = path.resolve(output.split('"')[1])
+                        console.log("\nDone: ", videoPath)
+                    }
+
+                    if(output.indexOf("already been downloaded") > -1){
+                        // get everything between quotes
+                        videoPath = path.resolve(output.slice(output.indexOf("]")+2, output.indexOf('.mkv') + 4))
+                        //console.log("\nAlready downloaded:", videoPath)
+                    }
+
+                });
+                dlProcess.stderr.on('data', (data) => {
+                    console.error(`stderr: ${data}`);
+                });
+                
+            })
+        } catch(e){
+            console.log("Error downloading")
+            console.log(e)
+            //fs.appendFileSync('./archive/badLinks', `\n${link}`);
             console.log("-------------------------------------------------------------")
-            return 
+            return
         }
 
-        fs.writeFileSync('videoInfo.json', JSON.stringify(info))
-        if(!info.title){
-            console.log("No title?")
-            console.log("video id: ", info.id)
+        if(!videoPath){
+            console.log("Error: No video path")
             console.log("-------------------------------------------------------------")
-            return 
+            return
         }
 
-        console.log(info.title)
-
-        const t = info.title.split(" ").join("_")
-        const path = `./archive/${t}`
-        await fromInfo('videoInfo.json', { 
-            output: path,
-            downloadArchive: `./archive/downloadArchive`
-        })
-
-        clips.forEach(clip => {
+        clipTemplates.forEach(clip => {
             if(clip.videoLink == link ){
-                clip.videoPath = `${path}.webm`
+                clip.videoPath = videoPath
             }
         })
 
+        // save videoPath
+        const match = matches.find(match => match.videoLink == link )
+        match.videoPath = videoPath
+        fs.writeFileSync('./data.json', JSON.stringify(matches))
+        
         console.log("-------------------------------------------------------------")
+
     })
     console.log("Done downloading.")
+}
 
 
-    //asdfasdf
-    clips.forEach(clip => {
-        if(clip.videoTitle == "N/A - bad link") return false
-        if(!clip.videoPath){
-            clip.videoPath = `./archive/${clip.videoTitle.split(" ").join("_")}.webm`
+async function generateClips(args, clipTemplates, outputDir, logPath){
+    console.log(`\nCutting ${clipTemplates.filter(c => c.videoTitle != "N/A - bad link").length} clips...\n`)
+
+    count = 0
+    await asyncForEach(clipTemplates, async clipTemplate => {
+        process.stdout.clearLine()
+        process.stdout.cursorTo(0)
+        process.stdout.write(`${count}/${clipTemplates.length}`)
+        if(clipTemplate.videoTitle == "N/A - bad link") return false
+        const fileNumber = pad(count++,4).toString()
+        await accurateSlice(
+            clipTemplate.videoPath,
+            fileNumber,
+            outputDir,
+            clipTemplate.start,
+            clipTemplate.end,
+            logPath
+        )
+
+        await addOverlay(args, clipTemplate, outputDir, fileNumber, logPath)
+        try {
+            fs.rmSync(path.resolve(outputDir,`${fileNumber}-sliced.mp4`))
+        } catch(e){
+            
         }
+        fs.appendFileSync(logPath, `-------------------------------------------------------------------------------------\n`)
+
     })
+}
 
+async function addOverlay(args, clipTemplate, outputDir, fileNumber, logPath){
 
+    const inputPath = path.resolve(outputDir, `${fileNumber}-sliced.mp4`)
+    const outputPath = path.resolve(outputDir, `${fileNumber}.mp4`)
+
+    const command = [
+        '../video_tools/overlay.py', 
+        inputPath, 
+        outputPath,
+        `Source: ${clipTemplate.eventName}`,
+    ]
+
+    if(args.addPlayerOverlay && clipTemplate.player) command.push(`Player: ${clipTemplate.player}` )
     
+    fs.appendFileSync(logPath, `python3 ${command.join(" ")}\n`)
 
-    console.log(`\nCutting ${clips.filter(c => c.videoTitle != "N/A - bad link").length} clips...\n`)
+    await new Promise((resolve) => {
+        const process = spawn('python3', command)
+        process.on("exit", resolve)
+        // process.stderr.on('data', (data) => {
+        //     console.error(`overlay.py stderr: ${data}`);
+        //     throw new Error("Error to escape process")
+        // });
+    })
+}
 
-    // make output directory videos
+function checkForArchivePath(){
+    if(!fs.existsSync( archivePath )){
+        console.log(`Archive path does not exist: ${archivePath}`)
+        process.exit()
+    }
+    if(!fs.existsSync( path.resolve(archivePath, 'downloadArchive') )){
+        fs.writeFileSync(path.resolve(archivePath, 'downloadArchive'), '')
+    }
+    if(!fs.existsSync( path.resolve(archivePath, 'badLinks') )){
+        fs.writeFileSync(path.resolve(archivePath, 'badLinks'),'')
+    }
+}
+
+function createOutputDir(){
     let outputDirectoryName = "output";
     const outputPath = "./output"
     let count = 1;
     while(fs.existsSync(path.resolve(`${outputPath}/${outputDirectoryName}`))){
         outputDirectoryName = `output${count++}`
     }
-    fs.mkdirSync(path.resolve(outputPath + "/" + outputDirectoryName))
-
-    if(HQmode){
-         // Accurate Slice:
-        count = 0
-        await asyncForEach(clips, async clip => {
-            process.stdout.clearLine()
-            process.stdout.cursorTo(0)
-            process.stdout.write(`${count}/${clips.length}`)
-            if(clip.videoTitle == "N/A - bad link") return false
-            await accurateSlice(
-                clip.videoPath,
-                pad(count++,3).toString(),
-                path.resolve(`${outputPath}/${outputDirectoryName}`),
-                clip.start,
-                clip.end
-            )
-        })
-    } else {
-
-        count = 0
-        const ffmpegLogPath = path.resolve(outputPath + "/" + outputDirectoryName + "/" + "log.txt")
-        await asyncForEach(clips, async clip => {
-            if(clip.videoTitle == "N/A - bad link") return false
-            process.stdout.clearLine()
-            process.stdout.cursorTo(0)
-            process.stdout.write(`${count}/${clips.length}`)
-            if(!clip.videoPath) {
-                if(!clip.videoTitle){
-                    console.log("No videoTitle?")
-                    return
-                }
-                const t = clip.videoTitle.split(" ").join("_")
-                const videoPath = `./archive/${t}`
-                clip.videoPath = `${videoPath}.webm`
-            } 
-
-            const args = [
-                "-ss",
-                clip.start.toString().toHHMMSS(),
-                "-to",
-                clip.end.toString().toHHMMSS(),
-                "-i",
-                clip.videoPath,
-                "-crf",
-                "1",
-                "-c",
-                "copy",
-                "-fflags",
-                "+genpts",
-                path.resolve(`${outputPath}/${outputDirectoryName}/${pad(count++,3)}.webm`)
-            ]
-            fs.appendFileSync(ffmpegLogPath, `${count-1}\n`)
-            fs.appendFileSync(ffmpegLogPath, `${clip.start} - ${clip.end}\n`)
-            fs.appendFileSync(ffmpegLogPath, `${clip.videoTitle}\n${clip.videoLink}\nffmpeg ${args.join(" ")}\n\ \n`)
-            await new Promise((resolve,reject) => {
-                //console.log(`ffmpeg ${args.join(" ")}`)
-                const process = spawn("ffmpeg", args)
-                process.on("exit", () => {
-                    //console.log("\n--------------------------------------------------------------------------")
-                    resolve()
-                })
-            })
-        })
-    }
-    process.stdout.clearLine()
-    process.stdout.cursorTo(0)
-    process.stdout.write(`${count}/${clips.length}\n`)
+    const finalPath = path.resolve(outputPath + "/" + outputDirectoryName)
+    fs.mkdirSync(finalPath)
+    return finalPath
 }
 
+function argParse() {
 
-async function getInfo(url, flags){ 
-    return await youtubedl(url, { dumpSingleJson: true, ...flags })
-}
+    const validGameTypes = ["8", "9", "9+","10"]
 
-async function fromInfo(infoFile, flags){
-    const promise = youtubedl.exec('', { loadInfoJson: infoFile, ...flags })
-    return await logger(promise, `Downloading`)
-}
-
-String.prototype.toHHMMSS = function () {
-    var sec_num = parseInt(this, 10);
-    var hours   = Math.floor(sec_num / 3600);
-    var minutes = Math.floor((sec_num - (hours * 3600)) / 60);
-    var seconds = sec_num - (hours * 3600) - (minutes * 60);
-
-    if (hours   < 10) {hours   = "0"+hours;}
-    if (minutes < 10) {minutes = "0"+minutes;}
-    if (seconds < 10) {seconds = "0"+seconds;}
-    return hours+':'+minutes+':'+seconds;
-}
-
-
-async function fixData(matches){
-
-    let shots = []
-    matches.forEach(match => {
-        match.moves.forEach( move => {
-            shots.push({
-                videoTitle: match.videoTitle,
-                videoLink: match.videoLink,
-                ...move
-            })
-        })
+    program
+    .description('A tool for creating pool clips')
+    .option('-c, --clips <number>', 'An integer count', 1)
+    .option('-p, --player <string>', 'A name', '')
+    .option('-e, --endSeconds <number>', 'An integer count', parseInt, 10)
+    .option('-eb, --breakEndSeconds <number>', 'An integer count', parseInt, 0)
+    .option('-bar, --bar', 'Only break and runs', false)
+    .option('-data, --data', 'Only show data', false)
+    .option('-po, --addPlayerOverlay', 'Add player overlay', false)
+    .option('-g, --gameType <string>', 'Game Type', (value) => {
+        if (!validGameTypes.includes(value.toString())) {
+            console.log(`Invalid -g parameter: ${value}. Valid options are: ${validGameTypes.join(', ')}`)
+            process.exit()
+        }
+        return value;
     })
+    .addHelpText('after')
+    .parse(process.argv)
 
-    shots = shots.filter(s => s.player == player)
+    const args = program.opts();
 
-    const uniqueLinksAndTitles = []
-    shots.forEach(s => {
-        if(!uniqueLinksAndTitles.find(l => l.videoLink == s.videoLink)){
-            uniqueLinksAndTitles.push(s)
-        }
-    })
-
-    await asyncForEach(uniqueLinksAndTitles, async u => {
-        const p = `./archive/${u.videoTitle.split(" ").join("_")}.webm`
-        if(!fs.existsSync(p)){
-            console.log(p)
-            console.log(u.videoLink)
-
-            let info
-            try {
-                const tmp = u.videoLink.split("&list")[0]
-                console.log(tmp)
-                info = await getInfo(tmp)
-                if(!info) throw "info undefined"
-            } catch(err){
-                console.log("Error getting info: ")
-                //fs.appendFileSync('./archive/badLinks', `\n${match.videoLink}`);
-                //match.videoTitle = "N/A - bad link"
-                //fs.writeFileSync('./data.json', JSON.stringify(matches))
-                console.log("-------------------------------------------------------------")
-                return 
-            }
-            console.log("DONWLOADING: ")
-            await fromInfo('videoInfo.json', { 
-                output: path,
-                downloadArchive: `./archive/downloadArchive`
-            })
-            console.log("-------------------------------------------------------------")
-        }
-    }) 
-
+    return args
 }
 
-
-// Used to add Video Names to data.json
-async function addVideoName(matches){
-    let count = 0
-    asyncForEach(matches, async match => {
-
-        
-        count++
-        console.log(`${count}/${matches.length}`)
-        console.log(match.videoLink)
-        if(match.videoTitle){
-            console.log('already done')
-            return
-        }
-        let info
-        try {
-            const tmp = match.videoLink.split("&list")[0]
-            info = await getInfo(tmp)
-            if(!info) throw "info undefined"
-        } catch(err){
-            console.log("Error getting info: ")
-            console.log(err)
-            fs.appendFileSync('./archive/badLinks', `\n${match.videoLink}`);
-            match.videoTitle = "N/A - bad link"
-            fs.writeFileSync('./data.json', JSON.stringify(matches))
-            console.log("-------------------------------------------------------------")
-            return 
-        }
-        console.log(info.title)
-        match.videoTitle = info.title
-        console.log("writing...")
-        fs.writeFileSync('./data.json', JSON.stringify(matches))
-        console.log("-------------------------------------------------------------")
-    })
-    return 
-}
+main();

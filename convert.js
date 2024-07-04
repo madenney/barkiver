@@ -6,8 +6,8 @@ const { asyncForEach } = require("./lib")
 const { spawn } = require("child_process")
 const path = require("path")
 
-const inputDir = "/home/matt/Projects/barkiver/output/output114"
-const outputDir = "/home/matt/Projects/barkiver/output/output114/converted"
+const inputDir = "/home/matt/Projects/pool-clipper/output/output"
+const outputDir = "/home/matt/Projects/pool-clipper/output/output/converted"
 
 const inputFiles = readdirSync(inputDir)
 

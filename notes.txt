@@ -1,14 +1,43 @@
+
+
+Notes
+
+## Downloading YT Videos:
+
+use yt-dlp
+https://github.com/yt-dlp
+
+Installation: 
+curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ~/.local/bin/yt-dlp
+chmod a+rx ~/.local/bin/yt-dlp  # Make executable
+
+
+
+## Accurately cutting video files:
 https://stackoverflow.com/questions/33854390/ffmpeg-how-to-encode-for-seekable-video-at-high-key-frame-interval
 
 
+## Useful commands
 
-GOT IT RIGHT WITH convert.js
-
-time_scale_test
-
-
-
+# create ffmpeg concat list
 printf "file '%s'\n" * > file.txt
 
+# concatenation command
 ffmpeg -f concat -i file.txt -c:v copy -c:a copy output.mp4
+
+
+
+Post Production Workflow:
+
+- Convert video clips to same aspect ratio and codec
+    - convert.js ( or scaled.js -> reencode.py? )
+- Create ffmpeg concat list
+    - printf "file '%s'\n" * > file.txt
+- Concatenate
+    - ffmpeg -f concat -i file.txt -c:v copy -c:a copy output.mp4
+    - alternative: ffmpeg -f concat -i file.txt  -c:v libx264 -preset slow -crf 18 -c:a aac -strict experimental final.mp4
+- Normalize audio
+    - ffmpeg -i final.avi -af "loudnorm=I=-23:LRA=7:TP=-2,compand=gain=-6" -c:v copy final_audio_normalized.avi
+
+
 
