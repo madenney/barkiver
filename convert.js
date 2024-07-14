@@ -1,59 +1,42 @@
-// ffmpeg -y -i f_current.mp4 -vf "setpts=1.25*PTS" -r 15 f_current_.mp4
 
+const { readdirSync, mkdirSync } = require("fs");
+const { spawn } = require("child_process");
+const path = require("path");
 
-const { lstatSync, readdirSync } = require("fs")
-const { asyncForEach } = require("./lib")
-const { spawn } = require("child_process")
-const path = require("path")
+const inputDir = process.argv[2];
+if (!inputDir) {
+    console.error("Usage: node script.js <input_directory>");
+    process.exit(1);
+}
 
-const inputDir = "/home/matt/Projects/pool-clipper/output/output"
-const outputDir = "/home/matt/Projects/pool-clipper/output/output/converted"
+const outputDir = path.resolve(inputDir, "converted");
+mkdirSync(outputDir, { recursive: true });
 
-const inputFiles = readdirSync(inputDir)
+const inputFiles = readdirSync(inputDir);
+const mp4s = inputFiles.filter(file => file.includes(".mp4"));
 
-console.log("Input Files: ", inputFiles.length )
+console.log("mp4 Files: ", mp4s.length);
 
-const mp4s = inputFiles.filter(file => file.includes(".mp4"))
+let count = 0;
 
-console.log("mp4 Files: ", mp4s.length )
+const asyncForEach = async (array, callback) => {
+    for (let index = 0; index < array.length; index++) {
+        await callback(array[index], index, array);
+    }
+};
 
-let count =  0
-// asyncForEach(mp4s, async mp4 => {
-//     await new Promise((resolve) => {
-//         console.log(`${count++} - ${mp4}`)
-//         const outputFile = path.resolve(outputDir, mp4)
-//         const args = [
-//             "-y",
-//             "-i",
-//             `${path.resolve(inputDir, mp4)}`,
-//             '-vf',
-//             "setpts=1.25*PTS",
-//             "-r",
-//             15,
-//             `${outputFile}`
-//         ]
-//         console.log(`ffmpeg ${args.join(" ")}`)
-
-//         const process = spawn('ffmpeg', args)
-//         process.on("exit", resolve)
-//     })
-// })
-
-// ffmpeg -i video1.mp4 -video_track_timescale 90000 video1_fixed.mp4
 asyncForEach(mp4s, async mp4 => {
     await new Promise((resolve) => {
-        console.log(`${count++} - ${mp4}`)
-        const outputFile = path.resolve(outputDir, mp4)
+        console.log(`${count++} - ${mp4}`);
+        const outputFile = path.resolve(outputDir, mp4);
         const args = [
-            "-i",
-            `${path.resolve(inputDir, mp4)}`,
-            '-video_track_timescale',
-            "90000",
-            `${outputFile}`
-        ]
-        console.log(`ffmpeg ${args.join(" ")}`)
+            "-i", path.resolve(inputDir, mp4),
+            "-video_track_timescale", "90000",
+            outputFile
+        ];
+        console.log(`ffmpeg ${args.join(" ")}`);
 
-        const process = spawn('ffmpeg', args)
-        process.on("exit", resolve)
-    })
-})
+        const process = spawn('ffmpeg', args);
+        process.on("exit", resolve);
+    });
+});

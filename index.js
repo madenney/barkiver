@@ -127,11 +127,26 @@ function findShots(args, matches){
         })
     }
 
+    if(args.safe){
+        shots = shots.filter((s, index) => {
+            if(s.outcome == "safety"){
+                if(shots[index+1].outcome == "safety" || shots[index+1].outcome == "missed"){
+                    return true
+                }
+            }
+        })
+    }
+
     if(args.player){
         shots = shots.filter(s => {
             if(s.player.toLowerCase() != args.player.toLowerCase()) return false
             return true
         })
+    }
+
+    if(args.skip){
+        console.log(`Skipping ${args.skip} shots`)
+        shots = shots.slice(args.skip)
     }
 
 
@@ -171,7 +186,7 @@ function createClipTemplates(args,shots){
             eventName: shot.eventName,
             outcome: shot.outcome,
             player: shot.player,
-            start: seconds,
+            start: seconds + args.startSeconds,
             end: seconds + args.endSeconds        
         }
 
@@ -370,11 +385,15 @@ function argParse() {
     program
     .description('A tool for creating pool clips')
     .option('-c, --clips <number>', 'An integer count', 1)
+    .option('-s, --skip <number>', 'Skip clips', 0)
     .option('-p, --player <string>', 'A name', '')
     .option('-e, --endSeconds <number>', 'An integer count', parseInt, 10)
+    .option('-start, --startSeconds <number>', 'An integer count', parseInt, 0)
     .option('-eb, --breakEndSeconds <number>', 'An integer count', parseInt, 0)
     .option('-bar, --bar', 'Only break and runs', false)
+    .option('-safe, --safe', 'Only safety shots', false)
     .option('-data, --data', 'Only show data', false)
+    .option('-r, --shuffle', 'Shuffle clips', false)
     .option('-po, --addPlayerOverlay', 'Add player overlay', false)
     .option('-g, --gameType <string>', 'Game Type', (value) => {
         if (!validGameTypes.includes(value.toString())) {
