@@ -36,3 +36,14 @@ npm-debug.log.*
 *.css.d.ts
 *.sass.d.ts
 *.scss.d.ts
+
+# poolmine
+# symlink to the 4TB drive holding downloaded videos
+new_library
+# the poolmine index (database.json) — local state
+database/
+# shot-annotation source data (974 json, 27MB)
+export/
+export.zip
+__pycache__/
+*.pyc
