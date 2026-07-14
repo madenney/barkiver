@@ -1,0 +1,359 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>poolmine — shots</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{color-scheme:dark;--hdr:53px}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{font:14px/1.45 system-ui,sans-serif;margin:0;background:#0f1216;color:#e6e9ee;display:flex;flex-direction:column;overflow:hidden}
+header{flex:0 0 auto;padding:14px 20px;border-bottom:1px solid #232a33;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;background:#0f1216;z-index:5}
+header h1{font-size:17px;margin:0}
+header .counts{color:#8b95a3;font-size:13px}
+.layout{flex:1 1 auto;min-height:0;display:flex}
+.filters{width:250px;flex:0 0 250px;padding:16px 18px;border-right:1px solid #232a33;overflow:auto}
+.filters h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#8b95a3;margin:18px 0 8px}
+.filters h3:first-child{margin-top:0}
+.filters label{display:block;margin:4px 0;cursor:pointer}
+.filters input[type=text],.filters input[type=number],.filters select{width:100%;background:#171d24;border:1px solid #2b333d;color:#e6e9ee;border-radius:6px;padding:6px 8px;font:inherit}
+.chip{display:inline-flex;align-items:center;gap:5px;background:#171d24;border:1px solid #2b333d;border-radius:14px;padding:3px 9px;margin:3px 3px 0 0;cursor:pointer;font-size:12px;user-select:none}
+.chip.on{background:#1d3a5f;border-color:#3d7ec0;color:#cfe3ff}
+.seg{display:flex;border:1px solid #2b333d;border-radius:6px;overflow:hidden;margin-top:2px}
+.seg button{flex:1;background:#171d24;border:0;color:#8b95a3;padding:5px;cursor:pointer;font:inherit}
+.seg button.on{background:#2b6cb0;color:#fff}
+.main{flex:1;min-width:0;overflow:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;text-align:left;white-space:nowrap;border-bottom:1px solid #1b2129}
+th{position:sticky;top:0;background:#141a20;cursor:pointer;user-select:none;font-size:12px;color:#aeb7c2;z-index:2}
+th:hover{color:#fff}
+th .ar{color:#3d7ec0;margin-left:3px}
+tr:hover td{background:#141a20}
+td.num{text-align:right}
+.badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+.b-made{background:#12351f;color:#5fd38a}.b-miss{background:#3a1e1e;color:#f0a0a0}
+.b-dl{background:#12351f;color:#5fd38a}.b-nodl{background:#2a313a;color:#7d8894}
+.flag{display:inline-block;width:20px;text-align:center;color:#f1c40f;font-weight:700}
+.flag.off{color:#39424d}
+.vid{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#b8c2cd}
+.type{text-transform:capitalize}
+.pager{flex:0 0 auto;background:#141a20;border-top:1px solid #232a33;padding:8px 16px;display:flex;align-items:center;gap:14px;font-size:13px}
+.pager button{background:#1d2530;border:1px solid #2b333d;color:#e6e9ee;border-radius:6px;padding:5px 12px;cursor:pointer}
+.pager button:disabled{opacity:.4;cursor:default}
+.muted{color:#8b95a3}
+.vplay{color:#cfe3ff;cursor:pointer}
+.vplay:hover{color:#fff;text-decoration:underline}
+.vplay .pi{color:#5fd38a;margin-right:4px}
+.vtitle{color:#7d8894}
+.yt{color:#6db3ff;text-decoration:none;font-size:11px;opacity:.75}
+.yt:hover{opacity:1}
+.edited-badge{background:#3a2f12;color:#f1c40f;border-radius:9px;padding:0 6px;font-size:10px;margin-left:5px}
+/* inline clip editor (expanded row) */
+tr.editrow>td{background:#0c0f13;padding:0;border-top:2px solid #2b6cb0;border-bottom:2px solid #2b6cb0}
+.editor{display:flex;gap:16px;padding:14px 18px;white-space:normal}
+.editor video{width:620px;max-width:50vw;background:#000;border-radius:6px;display:block;flex:0 0 auto}
+.edright{flex:1;min-width:0;display:flex;flex-direction:column;gap:11px}
+.edtitle{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.edmeta{color:#8b95a3;font-size:12px}
+.timeline{position:relative;height:38px;background:#1b2129;border-radius:5px;overflow:hidden;cursor:pointer}
+.tl-region{position:absolute;top:0;bottom:0;background:rgba(45,108,176,.35);border-left:2px solid #5fd38a;border-right:2px solid #e0685f}
+.tl-play{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none}
+.edrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.edrow .lab{width:46px;color:#8b95a3;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.tc{font-variant-numeric:tabular-nums;background:#12171d;border:1px solid #2b333d;border-radius:4px;padding:3px 8px;font-size:13px;min-width:150px;display:inline-block}
+.editor button{background:#1d2530;border:1px solid #2b333d;color:#e6e9ee;border-radius:5px;padding:5px 9px;cursor:pointer;font:inherit}
+.editor button:hover{background:#28323e}
+.editor button.primary{background:#2b6cb0;border-color:#3d7ec0}
+.editor button.play{min-width:96px}
+.editor .yt{font-size:12px;margin-left:4px}
+.savemsg{color:#5fd38a;font-size:12px}
+</style></head><body>
+<header>
+  <h1>🎱 poolmine · shots</h1>
+  <span class="counts" id="counts">loading…</span>
+</header>
+<div class="layout">
+  <aside class="filters">
+    <h3>Mode</h3>
+    <div class="seg" id="mode">
+      <button data-v="0" class="on">Shots</button>
+      <button data-v="1">Break &amp; runs</button>
+    </div>
+
+    <h3>Player</h3>
+    <input type="text" id="player" list="players" placeholder="name contains…" autocomplete="off">
+    <datalist id="players"></datalist>
+
+    <h3 id="typeHdr">Shot type</h3>
+    <div id="types"></div>
+
+    <h3 id="madeHdr">Result</h3>
+    <div class="seg" id="made">
+      <button data-v="" class="on">All</button>
+      <button data-v="made">Made</button>
+      <button data-v="missed">Missed</button>
+    </div>
+
+    <h3>Video</h3>
+    <div class="seg" id="downloaded">
+      <button data-v="" class="on">All</button>
+      <button data-v="yes">Downloaded</button>
+      <button data-v="no">Not yet</button>
+    </div>
+
+    <h3 id="flagHdr">Shot flags</h3>
+    <div id="flags">
+      <span class="chip" data-flag="long">long</span>
+      <span class="chip" data-flag="complex">complex</span>
+      <span class="chip" data-flag="strong">strong</span>
+    </div>
+
+    <h3 id="pcHdr">Min pocket complexity</h3>
+    <input type="number" id="min_pc" placeholder="e.g. 50" min="0" step="10">
+  </aside>
+
+  <main class="main">
+    <table>
+      <thead><tr id="head"></tr></thead>
+      <tbody id="body"></tbody>
+    </table>
+  </main>
+</div>
+<div class="pager">
+  <button id="prev">‹ Prev</button>
+  <span id="range" class="muted"></span>
+  <button id="next">Next ›</button>
+  <span id="sortinfo" class="muted"></span>
+</div>
+
+<script>
+const state = { bar:0, player:"", types:new Set(), made:"", downloaded:"", flags:new Set(),
+                min_pc:"", sort:"t", dir:"asc", offset:0, limit:200, total:0 };
+
+const COLS_SHOT = [
+  {k:"t",label:"Time",fmt:hms,num:1},
+  {k:"title",label:"Video",cls:"vid",render:videoCell},
+  {k:"player",label:"Player"},
+  {k:"type",label:"Type",cls:"type"},
+  {k:"made",label:"Result",render:r=>r.made?'<span class="badge b-made">made</span>':'<span class="badge b-miss">miss</span>'},
+  {k:"speed",label:"Speed",num:1,fmt:n1},
+  {k:"strength",label:"Str",num:1,fmt:n2},
+  {k:"pocketComplexity",label:"Pocket cx",num:1,fmt:n1},
+  {k:"cueTargetDist",label:"CT dist",num:1,fmt:n2},
+  {k:"cueTargetAngle",label:"CT ang",num:1,fmt:n1},
+  {k:"long",label:"L",render:r=>flag(r.long)},
+  {k:"complex",label:"Cx",render:r=>flag(r.complex)},
+  {k:"strong",label:"St",render:r=>flag(r.strong)},
+  {k:"dur",label:"Dur",num:1,fmt:n1},
+  {k:"downloaded",label:"DL",render:r=>(r.downloaded?'<span class="badge b-dl">✓</span>':'<span class="badge b-nodl">–</span>')+(r.edited?'<span class="edited-badge">edited</span>':'')},
+  {k:"yt",label:"",nosort:1,render:r=>`<a class="yt" target="_blank" title="Watch on YouTube" href="${ytUrl(r)}">YT↗</a>`},
+];
+const COLS_BAR = [
+  {k:"t",label:"Time",fmt:hms,num:1},
+  {k:"title",label:"Video",cls:"vid",render:videoCell},
+  {k:"player",label:"Player"},
+  {k:"run_length",label:"Run",num:1},
+  {k:"dur",label:"Dur",num:1,fmt:n1},
+  {k:"downloaded",label:"DL",render:r=>(r.downloaded?'<span class="badge b-dl">✓</span>':'<span class="badge b-nodl">–</span>')+(r.edited?'<span class="edited-badge">edited</span>':'')},
+  {k:"yt",label:"",nosort:1,render:r=>`<a class="yt" target="_blank" title="Watch on YouTube" href="${ytUrl(r)}">YT↗</a>`},
+];
+
+function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function ytUrl(r){return `https://youtu.be/${r.video_id}?t=${Math.floor(r.t||0)}`}
+function videoCell(r){
+  if(r.downloaded){
+    return `<span class="vplay" data-vid="${esc(r.video_id)}" data-t="${r.t}" data-dur="${r.dur}" `
+      +`data-title="${esc(r.title)}" title="Play downloaded video from ${hms(r.t)}">`
+      +`<span class="pi">▶</span>${esc(r.title)}</span>`;
+  }
+  return `<span class="vtitle" title="video not downloaded">${esc(r.title)}</span>`;
+}
+function n1(v){return v==null?"":(+v).toFixed(1)}
+function n2(v){return v==null?"":(+v).toFixed(2)}
+function hms(s){s=Math.max(0,Math.floor(s||0));const h=(s/3600|0),m=(s%3600/60|0),x=s%60;return `${h}:${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}`}
+function flag(on){return on?'<span class="flag">●</span>':'<span class="flag off">·</span>'}
+function cols(){return state.bar?COLS_BAR:COLS_SHOT}
+
+let timer=null;
+function schedule(reset){ if(reset)state.offset=0; clearTimeout(timer); timer=setTimeout(fetchRows,150); }
+
+function qs(){
+  const p=new URLSearchParams();
+  p.set("bar",state.bar); if(state.player)p.set("player",state.player);
+  state.types.forEach(t=>p.append("type",t));
+  if(state.made)p.set("made",state.made);
+  if(state.downloaded)p.set("downloaded",state.downloaded);
+  state.flags.forEach(f=>p.set(f,"1"));
+  if(state.min_pc!=="")p.set("min_pc",state.min_pc);
+  p.set("sort",state.sort); p.set("dir",state.dir);
+  p.set("offset",state.offset); p.set("limit",state.limit);
+  return p.toString();
+}
+
+async function fetchRows(){
+  const res = await (await fetch("/api/shots?"+qs())).json();
+  state.total=res.total;
+  renderHead(); renderBody(res.rows);
+  const from = res.total?res.offset+1:0, to=Math.min(res.offset+res.limit,res.total);
+  document.getElementById("range").textContent = `${from.toLocaleString()}–${to.toLocaleString()} of ${res.total.toLocaleString()}`;
+  document.getElementById("prev").disabled = res.offset<=0;
+  document.getElementById("next").disabled = to>=res.total;
+  document.getElementById("sortinfo").textContent = `sorted by ${state.sort} ${state.dir}`;
+}
+
+function renderHead(){
+  const tr=document.getElementById("head"); tr.innerHTML="";
+  cols().forEach(c=>{
+    const th=document.createElement("th");
+    th.innerHTML = c.label + (state.sort===c.k?`<span class="ar">${state.dir==="asc"?"▲":"▼"}</span>`:"");
+    if(c.num)th.style.textAlign="right";
+    if(c.nosort){ th.style.cursor="default"; }
+    else th.onclick=()=>{ if(state.sort===c.k){state.dir=state.dir==="asc"?"desc":"asc"} else {state.sort=c.k;state.dir=c.num?"desc":"asc"} schedule(true); };
+    tr.appendChild(th);
+  });
+}
+function renderBody(rows){
+  if(typeof closeEditor==="function") closeEditor();   // stop any open video before wiping the table
+  const tb=document.getElementById("body"); tb.innerHTML="";
+  const cs=cols();
+  for(const r of rows){
+    const tr=document.createElement("tr");
+    tr._row=r;
+    for(const c of cs){
+      const td=document.createElement("td");
+      if(c.cls)td.className=c.cls;
+      if(c.num)td.classList.add("num");
+      td.innerHTML = c.render?c.render(r):(c.fmt?c.fmt(r[c.k]):esc(r[c.k]));
+      tr.appendChild(td);
+    }
+    tb.appendChild(tr);
+  }
+}
+
+async function initFacets(){
+  const f=await (await fetch("/api/facets")).json();
+  document.getElementById("counts").textContent =
+    `${f.total.toLocaleString()} shots · ${f.downloaded.toLocaleString()} in downloaded videos`;
+  document.getElementById("players").innerHTML = f.players.slice(0,400).map(([p,n])=>`<option value="${esc(p)}">`).join("");
+  document.getElementById("types").innerHTML = f.types.map(([t,n])=>
+    `<span class="chip" data-type="${esc(t)}">${esc(t)} <span class="muted">${n}</span></span>`).join("");
+  document.querySelectorAll("#types .chip").forEach(ch=>ch.onclick=()=>{
+    const t=ch.dataset.type; ch.classList.toggle("on");
+    ch.classList.contains("on")?state.types.add(t):state.types.delete(t); schedule(true);
+  });
+}
+
+// wire controls
+document.getElementById("player").oninput=e=>{state.player=e.target.value;schedule(true)};
+document.getElementById("min_pc").oninput=e=>{state.min_pc=e.target.value;schedule(true)};
+function seg(id,key,after){document.querySelectorAll(`#${id} button`).forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(`#${id} button`).forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); state[key]=b.dataset.v; if(after)after(); schedule(true);
+});}
+seg("made","made"); seg("downloaded","downloaded");
+seg("mode","bar",()=>{ state.bar=+state.bar; state.sort="t"; state.dir="asc";
+  const show=!state.bar; ["typeHdr","madeHdr","flagHdr","pcHdr"].forEach(id=>document.getElementById(id).style.display=show?"":"none");
+  document.getElementById("types").style.display=show?"":"none";
+  document.getElementById("made").style.display=show?"":"none";
+  document.getElementById("flags").style.display=show?"":"none";
+  document.getElementById("min_pc").style.display=show?"":"none";
+});
+document.querySelectorAll("#flags .chip").forEach(ch=>ch.onclick=()=>{
+  const fl=ch.dataset.flag; ch.classList.toggle("on");
+  ch.classList.contains("on")?state.flags.add(fl):state.flags.delete(fl); schedule(true);
+});
+document.getElementById("prev").onclick=()=>{state.offset=Math.max(0,state.offset-state.limit);fetchRows()};
+document.getElementById("next").onclick=()=>{state.offset+=state.limit;fetchRows()};
+
+// ---- inline clip editor -----------------------------------------------------
+let ed=null;                                    // open editor state, or null
+function tcode(ms){ ms=Math.max(0,ms); const s=ms/1000, h=s/3600|0, m=(s%3600/60)|0, x=s%60;
+  return `${h}:${String(m).padStart(2,"0")}:${x.toFixed(2).padStart(5,"0")}`; }
+function frameOf(ms,fps){ return Math.round(ms/1000*fps); }
+
+function closeEditor(){ if(!ed)return; try{ed.video.pause();ed.video.removeAttribute("src");ed.video.load();}catch(e){}
+  ed.er.remove(); ed.rowTr.classList.remove("open"); ed=null; }
+
+function editorHTML(r,n){ return `<td colspan="${n}"><div class="editor">
+  <video controls preload="metadata"></video>
+  <div class="edright">
+    <div class="edtitle">${esc(r.title)} <span class="edmeta">· ${esc(r.video_id)} · ${(r.fps||30).toFixed(2)} fps · ${esc(r.player||"")} ${esc(r.type||"")}</span></div>
+    <div class="timeline"><div class="tl-region"></div><div class="tl-play"></div></div>
+    <div class="edrow">
+      <button class="play primary">▶ Loop</button>
+      <button class="ph" data-d="-1" title="playhead −1 frame">◀ frame</button>
+      <button class="ph" data-d="1" title="playhead +1 frame">frame ▶</button>
+      <span class="edmeta cur"></span><span class="edmeta dur"></span>
+    </div>
+    <div class="edrow"><span class="lab">Start</span><span class="tc st">–</span>
+      <button class="in" data-d="-1" title="start −1 frame">◀f</button>
+      <button class="in" data-d="1" title="start +1 frame">f▶</button>
+      <button class="setin" title="set start to playhead">⤓ here</button></div>
+    <div class="edrow"><span class="lab">Stop</span><span class="tc so">–</span>
+      <button class="out" data-d="-1" title="stop −1 frame">◀f</button>
+      <button class="out" data-d="1" title="stop +1 frame">f▶</button>
+      <button class="setout" title="set stop to playhead">⤓ here</button></div>
+    <div class="edrow">
+      <button class="save primary">💾 Save times</button>
+      <button class="reset">↺ Reset to original</button>
+      <a class="yt" target="_blank" href="${ytUrl(r)}">YouTube ↗</a>
+      <span class="savemsg"></span>
+    </div>
+  </div></div></td>`; }
+
+function drawEd(){ if(!ed)return; const er=ed.er, fps=ed.fps, pad=2000;
+  const ws=Math.max(0,ed.inMs-pad), we=ed.outMs+pad, span=Math.max(1,we-ws);
+  const reg=er.querySelector(".tl-region"); reg.style.left=((ed.inMs-ws)/span*100)+"%"; reg.style.width=((ed.outMs-ed.inMs)/span*100)+"%";
+  const pms=ed.video.currentTime*1000;
+  er.querySelector(".tl-play").style.left=(Math.max(0,Math.min(1,(pms-ws)/span))*100)+"%";
+  er.querySelector(".st").textContent=`${tcode(ed.inMs)} · frame ${frameOf(ed.inMs,fps)}`;
+  er.querySelector(".so").textContent=`${tcode(ed.outMs)} · frame ${frameOf(ed.outMs,fps)}`;
+  er.querySelector(".cur").textContent=`playhead ${tcode(pms)}`;
+  er.querySelector(".dur").textContent=` · clip ${((ed.outMs-ed.inMs)/1000).toFixed(2)}s / ${frameOf(ed.outMs-ed.inMs,fps)} frames`;
+  ed.playBtn.textContent = ed.video.paused ? "▶ Loop" : "❚❚ Pause";
+}
+
+function edLoop(){ if(ed){ const v=ed.video;
+    if(!v.paused && v.currentTime*1000 >= ed.outMs) v.currentTime = ed.inMs/1000;   // loop within [in,out]
+    drawEd(); }
+  requestAnimationFrame(edLoop); }
+requestAnimationFrame(edLoop);
+
+function openEditor(rowTr,r){
+  const wasOpen = ed && ed.rowTr===rowTr;
+  closeEditor();
+  if(wasOpen) return;                            // second click on the same row = close
+  const fps=r.fps||30, fMs=1000/fps;
+  const er=document.createElement("tr"); er.className="editrow";
+  er.innerHTML=editorHTML(r,cols().length);
+  rowTr.after(er); rowTr.classList.add("open");
+  const video=er.querySelector("video");
+  ed={ er, rowTr, video, playBtn:er.querySelector(".play"), asset_id:r.asset_id, idx:r.idx, r, fps, fMs,
+       inMs:Math.round(r.t*1000), outMs:Math.round((r.t+r.dur)*1000),
+       origIn:Math.round((r.begin_frame/fps)*1000), origOut:Math.round((r.end_frame/fps)*1000) };
+  video.src=`/media/video/${encodeURIComponent(r.video_id)}`;
+  video.addEventListener("loadedmetadata",()=>{ video.currentTime=ed.inMs/1000; drawEd(); });
+  ed.playBtn.onclick=()=>{ if(video.paused){ if(video.currentTime*1000>=ed.outMs) video.currentTime=ed.inMs/1000; video.play(); } else video.pause(); };
+  er.querySelectorAll(".ph").forEach(b=>b.onclick=()=>{ video.pause(); video.currentTime=Math.max(0,video.currentTime+(+b.dataset.d)*fMs/1000); drawEd(); });
+  er.querySelectorAll(".in").forEach(b=>b.onclick=()=>{ ed.inMs=Math.max(0,Math.min(Math.round(ed.inMs+(+b.dataset.d)*fMs), ed.outMs-fMs)); video.pause(); video.currentTime=ed.inMs/1000; drawEd(); });
+  er.querySelectorAll(".out").forEach(b=>b.onclick=()=>{ ed.outMs=Math.max(ed.inMs+fMs, Math.round(ed.outMs+(+b.dataset.d)*fMs)); video.pause(); video.currentTime=ed.outMs/1000; drawEd(); });
+  er.querySelector(".setin").onclick=()=>{ ed.inMs=Math.min(Math.round(video.currentTime*1000), ed.outMs-fMs); drawEd(); };
+  er.querySelector(".setout").onclick=()=>{ ed.outMs=Math.max(ed.inMs+fMs, Math.round(video.currentTime*1000)); drawEd(); };
+  er.querySelector(".timeline").onclick=e=>{ const rect=e.currentTarget.getBoundingClientRect(), frac=(e.clientX-rect.left)/rect.width,
+      pad=2000, ws=Math.max(0,ed.inMs-pad), we=ed.outMs+pad; video.pause(); video.currentTime=Math.max(0,(ws+frac*(we-ws))/1000); drawEd(); };
+  er.querySelector(".reset").onclick=()=>{ ed.inMs=ed.origIn; ed.outMs=ed.origOut; video.pause(); video.currentTime=ed.inMs/1000; drawEd(); er.querySelector(".savemsg").textContent="reset — Save to persist"; };
+  er.querySelector(".save").onclick=async()=>{ const msg=er.querySelector(".savemsg"); msg.textContent="saving…";
+    const res=await fetch("/api/edit",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({asset_id:ed.asset_id,idx:ed.idx,start_ms:ed.inMs,end_ms:ed.outMs})}).then(x=>x.json()).catch(()=>({ok:false}));
+    if(res.ok){ msg.textContent="✓ saved"; r.t=ed.inMs/1000; r.dur=(ed.outMs-ed.inMs)/1000; r.edited=true;
+      const di=cols().findIndex(c=>c.k==="downloaded"); if(di>=0&&rowTr.children[di]) rowTr.children[di].innerHTML=cols()[di].render(r);
+    } else msg.textContent="✗ "+(res.error||"save failed"); };
+}
+
+document.getElementById("body").addEventListener("click",e=>{
+  const el=e.target.closest(".vplay"); if(!el) return;
+  const tr=el.closest("tr"); if(tr&&tr._row) openEditor(tr,tr._row);
+});
+addEventListener("keydown",e=>{ if(e.key==="Escape"&&ed) closeEditor(); });
+
+initFacets().then(fetchRows);
+</script>
+</body></html>

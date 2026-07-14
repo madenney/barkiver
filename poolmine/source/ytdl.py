@@ -71,6 +71,21 @@ def existing_media(video_id: str, root: Path = LIBRARY_ROOT) -> Optional[Path]:
     return None
 
 
+_SNAP_PROFILE = Path.home() / "snap/firefox/common/.mozilla/firefox/guyvx12c.default-release"
+
+
+def _cookie_arg() -> str:
+    """Which Firefox profile to pull cookies from.
+
+    There are two profiles with the same name; only the snap one is logged into
+    YouTube. yt-dlp's bare ``firefox`` prefers ``~/.mozilla``, which holds an
+    unauthenticated session and yields "Sign in to confirm you're not a bot".
+    """
+    if (_SNAP_PROFILE / "cookies.sqlite").exists():
+        return f"firefox:{_SNAP_PROFILE}"
+    return "firefox"
+
+
 def pot_server_running(port: int = POT_PORT) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(1.5)
@@ -111,7 +126,7 @@ def download_video(video_id: str, url: Optional[str] = None, root: Path = LIBRAR
     root.mkdir(parents=True, exist_ok=True)
     target = url or f"https://www.youtube.com/watch?v={video_id}"
     out_tmpl = str(root / "%(id)s.%(ext)s")
-    browser = os.environ.get("POOLMINE_YTDLP_COOKIES_BROWSER", "firefox")
+    browser = os.environ.get("POOLMINE_YTDLP_COOKIES_BROWSER") or _cookie_arg()
     cmd = [
         yt, target,
         *_FORMAT, *_PACING, *_RETRY,
